@@ -4,16 +4,35 @@ services:
     container_name: cloud-player
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "${BIND_IP:-0.0.0.0}:${PORT:-3000}:3000"
     environment:
-      PORT: 3000
-      CACHE_DIR: /data/cache
-      MAX_CACHE_GB: 20
-      CACHE_TTL_MINUTES: 120
-      CLEANUP_INTERVAL_MINUTES: 5
-      MAX_TORRENT_FILE_MB: 20
-      FFMPEG_PATH: ffmpeg
+      PORT: ${PORT:-3000}
+      CACHE_DIR: ${CACHE_DIR:-/data/cache}
+      MAX_CACHE_GB: ${MAX_CACHE_GB:-20}
+      CACHE_TTL_MINUTES: ${CACHE_TTL_MINUTES:-120}
+      CLEANUP_INTERVAL_MINUTES: ${CLEANUP_INTERVAL_MINUTES:-5}
+      MAX_TORRENT_FILE_MB: ${MAX_TORRENT_FILE_MB:-20}
+      FFMPEG_PATH: ${FFMPEG_PATH:-ffmpeg}
       # Set a long random token before exposing the service to the Internet.
-      AUTH_TOKEN: ""
+      AUTH_TOKEN: ${AUTH_TOKEN:-}
     volumes:
       - ./data:/data
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: cloud-player-caddy
+    profiles: ["proxy"]
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - cloud-player
+
+volumes:
+  caddy_data:
+  caddy_config:

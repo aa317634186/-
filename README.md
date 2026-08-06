@@ -19,6 +19,16 @@
 
 ## Docker 部署
 
+### 一键菜单部署
+
+在 Linux 服务器使用 root 执行下面一条命令即可进入安装菜单：
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/aa317634186/-/master/install.sh)
+```
+
+菜单支持安装、更新、卸载、域名访问和 IP+端口访问控制。选择“添加域名访问”后，填写已经解析到服务器的域名，Caddy 会自动申请 HTTPS 证书。
+
 服务器需要 Docker 和 Compose 插件。将项目上传到服务器后执行：
 
 ```bash
