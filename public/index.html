@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#101416" />
+    <title>云播放器</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="shell">
+      <header class="topbar">
+        <a class="brand" href="/" aria-label="返回首页">
+          <span class="brand-mark">▶</span>
+          <span>云播放器</span>
+        </a>
+        <div class="topbar-meta">
+          <label class="token-field" title="服务器设置 AUTH_TOKEN 时，在这里输入令牌">
+            <span>令牌</span>
+            <input id="tokenInput" type="password" placeholder="可选" autocomplete="off" />
+          </label>
+          <span class="connection"><i id="connectionDot"></i><span id="connectionText">连接中</span></span>
+        </div>
+      </header>
+
+      <main>
+        <section class="intro-row">
+          <div>
+            <p class="eyebrow">TEMPORARY STREAMING CACHE</p>
+            <h1>把视频留在云上，<em>看完即清</em></h1>
+            <p class="intro-copy">从磁力链或种子开始播放。任务只使用临时缓存，按空闲时间和磁盘上限自动回收。</p>
+          </div>
+          <div class="metric-strip">
+            <div class="metric"><span>任务</span><strong id="taskCount">0</strong></div>
+            <div class="metric"><span>缓存</span><strong id="cacheLimit">--</strong></div>
+          </div>
+        </section>
+
+        <section class="source-panel">
+          <div class="panel-heading">
+            <div>
+              <span class="section-kicker">ADD SOURCE</span>
+              <h2>添加一个播放源</h2>
+            </div>
+            <span class="temporary-tag">临时任务</span>
+          </div>
+          <div class="source-tabs" role="tablist">
+            <button class="source-tab active" data-tab="magnet" role="tab">磁力链接</button>
+            <button class="source-tab" data-tab="file" role="tab">种子文件</button>
+          </div>
+          <form id="magnetForm" class="source-form">
+            <input id="magnetInput" type="url" placeholder="粘贴 magnet:?xt=..." required />
+            <button class="primary-button" type="submit"><span>开始解析</span><b>↗</b></button>
+          </form>
+          <form id="fileForm" class="source-form hidden">
+            <label class="file-drop" for="torrentFile">
+              <span class="file-icon">↥</span>
+              <span><strong id="fileName">选择 .torrent 文件</strong><small>最大 20 MB</small></span>
+            </label>
+            <input id="torrentFile" type="file" accept=".torrent,application/x-bittorrent" required />
+            <button class="primary-button" type="submit"><span>开始解析</span><b>↗</b></button>
+          </form>
+          <p id="formMessage" class="form-message" aria-live="polite"></p>
+        </section>
+
+        <div class="content-grid">
+          <section class="player-column">
+            <div class="section-header">
+              <div><span class="section-kicker">NOW PLAYING</span><h2 id="nowPlayingTitle">尚未选择视频</h2></div>
+              <span id="playerStatus" class="status-pill muted">等待播放</span>
+            </div>
+            <div class="player-frame">
+              <video id="videoPlayer" controls playsinline preload="metadata"></video>
+              <div id="playerEmpty" class="player-empty">
+                <div class="empty-play">▶</div>
+                <strong>选择一个任务开始播放</strong>
+                <span>视频会按需下载到临时缓存</span>
+              </div>
+            </div>
+            <div id="selectedDetails" class="selected-details hidden"></div>
+            <div class="files-section">
+              <div class="section-header compact"><div><span class="section-kicker">VIDEO FILES</span><h2>视频文件</h2></div></div>
+              <div id="fileList" class="file-list empty-list"><span>添加任务后，视频文件会显示在这里</span></div>
+            </div>
+          </section>
+
+          <aside class="side-column">
+            <section class="queue-section">
+              <div class="section-header compact">
+                <div><span class="section-kicker">QUEUE</span><h2>播放任务</h2></div>
+                <span id="queueCount" class="count-badge">0</span>
+              </div>
+              <div id="queueList" class="queue-list empty-list"><span>还没有播放任务</span></div>
+            </section>
+            <section class="cache-section">
+              <div class="section-header compact"><div><span class="section-kicker">CACHE POLICY</span><h2>缓存策略</h2></div></div>
+              <div class="cache-meter"><span id="cacheMeterBar"></span></div>
+              <div class="cache-reading"><strong id="cacheReading">0 B</strong><span id="cacheReadingLimit">/ --</span></div>
+              <div class="policy-list">
+                <div><span>自动回收</span><strong id="ttlReading">--</strong></div>
+                <div><span>播放中任务</span><strong id="activeReading">0</strong></div>
+              </div>
+              <p class="cache-note">超过空闲时间或磁盘上限的任务会自动删除。</p>
+            </section>
+            <section class="history-section">
+              <div class="section-header compact">
+                <div><span class="section-kicker">HISTORY</span><h2>播放历史</h2></div>
+                <button id="clearHistory" class="clear-history" type="button">清空</button>
+              </div>
+              <div id="historyList" class="history-list empty-list"><span>播放后会显示最近记录</span></div>
+            </section>
+          </aside>
+        </div>
+      </main>
+      <footer><span>Cloud Player / 临时缓存模式</span><span id="serverMode">本地服务</span></footer>
+    </div>
+    <div id="toast" class="toast" role="status"></div>
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>

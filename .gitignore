@@ -1,0 +1,6 @@
+node_modules/
+.env
+data/
+cache/
+npm-debug.log*
+preview.png
