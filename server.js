@@ -21,7 +21,7 @@ const client = new WebTorrent({
   lsd: true,
   natUpnp: true,
   natPmp: true,
-  maxConns: Math.max(8, Number(process.env.MAX_PEERS || 80))
+  maxConns: Math.max(8, Number(process.env.MAX_PEERS || 200))
 });
 client.on("error", (error) => {
   console.error("WebTorrent client error:", error);

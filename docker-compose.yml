@@ -17,7 +17,7 @@ services:
       FFMPEG_PATH: ${FFMPEG_PATH:-ffmpeg}
       PEER_PORT: ${PEER_PORT:-6881}
       DHT_PORT: ${DHT_PORT:-6881}
-      MAX_PEERS: ${MAX_PEERS:-80}
+      MAX_PEERS: ${MAX_PEERS:-200}
       # Set a long random token before exposing the service to the Internet.
       AUTH_TOKEN: ${AUTH_TOKEN:-}
     volumes:
