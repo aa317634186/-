@@ -87,16 +87,20 @@ async function syncItem(item) {
     const candidates = item.files.map((file, index) => ({ file, index })).filter(({ file }) => isVideo(file.name)).sort((a, b) => b.file.length - a.file.length);
     if (candidates.length) item.selectedFileIndex = candidates[0].index;
   }
-  if (item.files.length && item.selectedFileIndex != null && !item.selectionConfigured) {
-    await rpc("aria2.changeOption", [item.gid, { "select-file": String(item.selectedFileIndex + 1), "bt-sequential-download": "true", "bt-prioritize-piece": "head" }]);
-    item.selectionConfigured = true;
-    if (!item.caching) await rpc("aria2.pause", [item.gid]).catch(() => {});
-    await persistTasks();
+  if (item.files.length && item.selectedFileIndex != null && !item.selectionConfigured && status.status !== "waiting" && item.files.some((file) => file.length > 0)) {
+    try {
+      await rpc("aria2.changeOption", [item.gid, { "select-file": String(item.selectedFileIndex + 1), "bt-sequential-download": "true", "bt-prioritize-piece": "head" }]);
+      item.selectionConfigured = true;
+      if (!item.caching) await rpc("aria2.pause", [item.gid]).catch(() => {});
+      await persistTasks();
+    } catch (error) {
+      console.warn(`aria2 selection delayed for ${item.id}:`, error.message);
+    }
   }
   return item;
 }
 
-async function syncAll() { await Promise.all([...torrents.values()].map(syncItem)); }
+async function syncAll() { await Promise.allSettled([...torrents.values()].map(syncItem)); }
 function getItem(req, res) { const item = torrents.get(req.params.id); if (!item) { res.status(404).json({ error: "Task not found" }); return null; } item.lastAccessedAt = Date.now(); return item; }
 function addOptions(id) { return { dir: taskDir(id), "bt-sequential-download": "true", "bt-prioritize-piece": "head", "bt-max-peers": String(process.env.MAX_PEERS || 200), "max-upload-limit": `${process.env.UPLOAD_LIMIT_KBPS || 32}K`, "seed-time": "0", "enable-dht": "true", "bt-enable-lpd": "true", "bt-tracker-connect": "true", "bt-tracker": ["udp://tracker.opentrackr.org:1337/announce", "udp://open.stealth.si:80/announce", "udp://tracker.torrent.eu.org:451/announce", "udp://exodus.desync.com:6969/announce"].join(",") }; }
 
@@ -107,7 +111,10 @@ async function addTask(source, sourceType, restored = null) {
   let sourceValue = source;
   if (sourceType === "file" && Buffer.isBuffer(source)) { sourceValue = path.join(taskDir(id), "source.torrent"); await fsp.writeFile(sourceValue, source); }
   const options = addOptions(id);
-  gid = sourceType === "magnet" ? await rpc("aria2.addUri", [[source], options]) : await rpc("aria2.addTorrent", [source.toString("base64"), options]);
+  if (restored?.gid) {
+    try { await rpc("aria2.tellStatus", [restored.gid, ["status"]]); gid = restored.gid; } catch {}
+  }
+  if (!gid) gid = sourceType === "magnet" ? await rpc("aria2.addUri", [[source], options]) : await rpc("aria2.addTorrent", [source.toString("base64"), options]);
   const item = { id, gid, source: sourceType === "magnet" ? "Magnet" : "Torrent file", sourceType, sourceValue, name: restored?.name || "Reading torrent...", status: "metadata", createdAt: restored?.createdAt || new Date().toISOString(), lastAccessedAt: Date.now(), selectedFileIndex: restored?.selectedFileIndex ?? null, files: [], activeStreams: 0, caching: false, selectionConfigured: false };
   torrents.set(id, item);
   await persistTasks();
