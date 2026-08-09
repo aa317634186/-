@@ -4,6 +4,7 @@ const state = {
   history: JSON.parse(localStorage.getItem("cloud-player-history") || "[]"),
   pendingHistoryKey: null,
   lastHistorySaveAt: 0,
+  optimisticTorrent: null,
   selectedId: null,
   config: { maxCacheGb: 20, cacheTtlMinutes: 120, ffmpegAvailable: false },
   token: localStorage.getItem("cloud-player-token") || ""
@@ -26,6 +27,12 @@ async function api(url, options = {}) {
   const response = await fetch(url, { ...options, headers: headers(options.headers || {}) });
   const data = response.status === 204 ? null : await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(data?.error || `请求失败 (${response.status})`);
+  if (url === "/api/torrents" && options.method === "POST" && data?.id) {
+    state.optimisticTorrent = data;
+    state.torrents = [data, ...state.torrents.filter((item) => item.id !== data.id)];
+    state.selectedId = data.id;
+    render();
+  }
   return data;
 }
 
@@ -55,7 +62,9 @@ async function loadConfig() {
 async function refresh() {
   try {
     const [torrents, cache] = await Promise.all([api("/api/torrents"), api("/api/cache")]);
-    state.torrents = torrents;
+    const pending = state.optimisticTorrent;
+    state.torrents = pending && !torrents.some((item) => item.id === pending.id) ? [pending, ...torrents] : torrents;
+    if (pending && torrents.some((item) => item.id === pending.id)) state.optimisticTorrent = null;
     state.cache = cache;
     setConnection(true, "已连接");
     if (!state.selectedId || !state.torrents.some((item) => item.id === state.selectedId)) {
@@ -302,6 +311,12 @@ $("#fileForm").addEventListener("submit", async (event) => {
   try {
     const response = await fetch("/api/torrents/upload", { method: "POST", body: form, headers: state.token ? { Authorization: `Bearer ${state.token}` } : {} });
     const item = await response.json();
+    if (response.ok && item?.id) {
+      state.optimisticTorrent = item;
+      state.torrents = [item, ...state.torrents.filter((entry) => entry.id !== item.id)];
+      state.selectedId = item.id;
+      render();
+    }
     if (!response.ok) throw new Error(item.error || "上传失败");
     state.selectedId = item.id; $("#torrentFile").value = ""; $("#fileName").textContent = "选择 .torrent 文件"; message.textContent = ""; toast("任务已加入"); await refresh();
   } catch (error) { message.textContent = error.message; }
