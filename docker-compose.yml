@@ -4,7 +4,7 @@ services:
     container_name: cloud-player
     restart: unless-stopped
     ports:
-      - "${BIND_IP:-0.0.0.0}:${PORT:-3000}:3000"
+      - "3000:3000"
       - "${PEER_PORT:-6881}:6881/tcp"
       - "${PEER_PORT:-6881}:6881/udp"
     environment:
