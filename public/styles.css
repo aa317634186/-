@@ -80,6 +80,8 @@ video { width: 100%; height: 100%; display: block; background: #080a0b; }
 .empty-play { border: 1px solid #445052; width: 48px; height: 48px; border-radius: 50%; display: grid; place-items: center; color: var(--accent); font-size: 15px; padding-left: 3px; margin-bottom: 5px; }
 .selected-details { border-bottom: 1px solid var(--line); padding: 15px 0; color: var(--muted); font-size: 12px; }
 .selected-details strong { color: var(--text); display: block; margin-bottom: 5px; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.video-selector { display: flex; align-items: center; gap: 10px; margin-top: 12px; color: var(--muted); font-size: 11px; }
+.video-selector select { min-width: min(100%, 420px); max-width: 100%; background: var(--panel-raised); color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 7px 9px; }
 .files-section { margin-top: 35px; }
 .file-list, .queue-list { border-top: 1px solid var(--line); }
 .empty-list { color: var(--muted); font-size: 12px; padding: 18px 0; }

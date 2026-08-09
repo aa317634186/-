@@ -151,8 +151,19 @@ function renderSelected(item) {
   }
   const details = $("#selectedDetails");
   if (selectedFile) {
+    const videoFiles = item.files.filter((file) => file.isVideo);
+    const videoSelector = videoFiles.length > 1
+      ? `<label class="video-selector"><span>视频文件</span><select data-video-select>${videoFiles.map((file) => `<option value="${file.index}" ${file.index === selectedFile.index ? "selected" : ""}>${escapeHtml(file.name)}</option>`).join("")}</select></label>`
+      : "";
     details.className = "selected-details";
-    details.innerHTML = `<strong title="${escapeHtml(selectedFile.name)}">${escapeHtml(selectedFile.name)}</strong><span>${formatBytes(selectedFile.length)} · ${formatSpeed(item.downloadSpeed)} · ${item.peers} 个连接</span>`;
+    details.innerHTML = `<strong title="${escapeHtml(selectedFile.name)}">${escapeHtml(selectedFile.name)}</strong><span>${formatBytes(selectedFile.length)} · ${formatSpeed(item.downloadSpeed)} · ${item.peers} 个连接</span>${videoSelector}`;
+    details.querySelector("[data-video-select]")?.addEventListener("change", async (event) => {
+      try {
+        await api(`/api/torrents/${item.id}/select`, { method: "POST", body: JSON.stringify({ fileIndex: Number(event.target.value) }) });
+        state.selectedId = item.id;
+        await refresh();
+      } catch (error) { toast(error.message, true); }
+    });
     const player = $("#videoPlayer");
     const endpoint = selectedFile.directPlayable ? "stream" : "transcode";
     const streamUrl = `/api/torrents/${item.id}/files/${selectedFile.index}/${endpoint}${state.token ? `?token=${encodeURIComponent(state.token)}` : ""}`;
