@@ -148,12 +148,11 @@ function normalizeMagnet(value) {
   const match = xt.match(/^urn:btih:([a-z0-9]{40}|[a-z2-7]{32})$/i);
   if (!match) throw new Error("Magnet link is missing a valid btih hash");
 
-  const normalized = new URLSearchParams();
-  normalized.set("xt", `urn:btih:${match[1].toUpperCase()}`);
+  const normalized = [`xt=urn:btih:${match[1].toUpperCase()}`];
   for (const key of ["dn", "tr", "xl", "ws", "as", "xs", "kt", "mt", "so"]) {
-    for (const value of query.getAll(key)) normalized.append(key, value);
+    for (const value of query.getAll(key)) normalized.push(`${key}=${encodeURIComponent(value)}`);
   }
-  return `magnet:?${normalized.toString()}`;
+  return `magnet:?${normalized.join("&")}`;
 }
 
 async function addTorrent(source, sourceType, restored = null) {
@@ -161,7 +160,9 @@ async function addTorrent(source, sourceType, restored = null) {
   const torrentPath = path.join(CACHE_DIR, id);
   await fsp.mkdir(torrentPath, { recursive: true });
   let torrentSource = source;
-  if (sourceType === "file" && Buffer.isBuffer(source)) {
+  if (sourceType === "magnet") {
+    torrentSource = normalizeMagnet(source);
+  } else if (sourceType === "file" && Buffer.isBuffer(source)) {
     torrentSource = path.join(torrentPath, "source.torrent");
     await fsp.writeFile(torrentSource, source);
   }
