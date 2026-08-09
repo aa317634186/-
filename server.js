@@ -14,12 +14,16 @@ const app = express();
 const client = new WebTorrent({
   torrentPort: Math.max(1, Number(process.env.PEER_PORT || 6881)),
   dhtPort: Math.max(1, Number(process.env.DHT_PORT || 6881)),
+  utp: false,
   dht: true,
   tracker: true,
   lsd: true,
   natUpnp: true,
   natPmp: true,
   maxConns: Math.max(8, Number(process.env.MAX_PEERS || 80))
+});
+client.on("error", (error) => {
+  console.error("WebTorrent client error:", error);
 });
 const torrents = new Map();
 
@@ -113,6 +117,23 @@ function checkFfmpeg() {
   });
 }
 
+function normalizeMagnet(value) {
+  const input = value.trim();
+  if (!/^magnet:\?/i.test(input)) throw new Error("Invalid magnet link");
+
+  const query = new URLSearchParams(input.slice(input.indexOf("?") + 1));
+  const xt = query.get("xt") || "";
+  const match = xt.match(/^urn:btih:([a-z0-9]{40}|[a-z2-7]{32})$/i);
+  if (!match) throw new Error("Magnet link is missing a valid btih hash");
+
+  const normalized = new URLSearchParams();
+  normalized.set("xt", `urn:btih:${match[1].toUpperCase()}`);
+  for (const key of ["dn", "tr", "xl", "ws", "as", "xs", "kt", "mt", "so"]) {
+    for (const value of query.getAll(key)) normalized.append(key, value);
+  }
+  return `magnet:?${normalized.toString()}`;
+}
+
 async function addTorrent(source, sourceType) {
   const id = crypto.randomUUID();
   const item = {
@@ -193,7 +214,7 @@ app.post("/api/torrents", async (req, res) => {
     return res.status(400).json({ error: "请输入有效的磁力链接" });
   }
   try {
-    res.status(201).json(await addTorrent(magnet.trim(), "magnet"));
+    res.status(201).json(await addTorrent(normalizeMagnet(magnet), "magnet"));
   } catch (error) {
     res.status(400).json({ error: error.message, item: error.item ? publicTorrent(error.item) : null });
   }
