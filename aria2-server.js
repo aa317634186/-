@@ -49,11 +49,18 @@ async function rpc(method, params = []) {
 }
 
 function taskDir(id) { return path.join(CACHE_DIR, id); }
+function torrentKey(source, sourceType) {
+  if (sourceType === "magnet") {
+    const match = String(source).match(/[?&]xt=urn:btih:([^&]+)/i);
+    if (match) return `magnet:${decodeURIComponent(match[1]).toLowerCase()}`;
+  }
+  return `${sourceType}:${String(source)}`;
+}
 function fileName(filePath, id) { return path.relative(taskDir(id), filePath).replaceAll(path.sep, "/"); }
 function isVideo(name) { return VIDEO_EXTENSIONS.has(path.extname(name).toLowerCase()); }
 
 function persistTasks() {
-  const records = [...torrents.values()].map((item) => ({ id: item.id, gid: item.gid, sourceType: item.sourceType, sourceValue: item.sourceValue, name: item.name, createdAt: item.createdAt, lastAccessedAt: item.lastAccessedAt, selectedFileIndex: item.selectedFileIndex }));
+  const records = [...torrents.values()].map((item) => ({ id: item.id, gid: item.gid, sourceType: item.sourceType, sourceValue: item.sourceValue, name: item.name, createdAt: item.createdAt, lastAccessedAt: item.lastAccessedAt, selectedFileIndex: item.selectedFileIndex, caching: Boolean(item.caching) }));
   saveChain = saveChain.then(async () => {
     const tmp = `${TASKS_FILE}.tmp`;
     await fsp.writeFile(tmp, JSON.stringify(records, null, 2));
@@ -106,6 +113,11 @@ function addOptions(id) { return { dir: taskDir(id), "bt-sequential-download": "
 
 async function addTask(source, sourceType, restored = null) {
   const id = restored?.id || crypto.randomUUID();
+  const isRestored = Boolean(restored);
+  const shouldCache = isRestored ? restored.caching === true : true;
+  const sourceKey = torrentKey(source, sourceType);
+  const existing = [...torrents.values()].find((item) => item.sourceKey === sourceKey && item.id !== id);
+  if (existing) return publicTorrent(existing);
   await fsp.mkdir(taskDir(id), { recursive: true });
   let gid;
   let sourceValue = source;
@@ -115,10 +127,14 @@ async function addTask(source, sourceType, restored = null) {
     try { await rpc("aria2.tellStatus", [restored.gid, ["status"]]); gid = restored.gid; } catch {}
   }
   if (!gid) gid = sourceType === "magnet" ? await rpc("aria2.addUri", [[source], options]) : await rpc("aria2.addTorrent", [source.toString("base64"), options]);
-  const item = { id, gid, source: sourceType === "magnet" ? "Magnet" : "Torrent file", sourceType, sourceValue, name: restored?.name || "Reading torrent...", status: "metadata", createdAt: restored?.createdAt || new Date().toISOString(), lastAccessedAt: Date.now(), selectedFileIndex: restored?.selectedFileIndex ?? null, files: [], activeStreams: 0, caching: false, selectionConfigured: false };
+  const item = { id, gid, source: sourceType === "magnet" ? "Magnet" : "Torrent file", sourceType, sourceValue, sourceKey, name: restored?.name || "Reading torrent...", status: "metadata", createdAt: restored?.createdAt || new Date().toISOString(), lastAccessedAt: Date.now(), selectedFileIndex: restored?.selectedFileIndex ?? null, files: [], activeStreams: 0, caching: shouldCache, selectionConfigured: false };
   torrents.set(id, item);
   await persistTasks();
   await syncItem(item);
+  if (isRestored && !item.caching) {
+    await rpc("aria2.pause", [item.gid]).catch(() => {});
+    if (item.status !== "ready" && item.status !== "error") item.status = "paused";
+  }
   return publicTorrent(item);
 }
 
@@ -163,11 +179,11 @@ app.get("/api/torrents/:id/files/:index/stream", async (req, res) => { const ite
 
 app.get("/api/torrents/:id/files/:index/transcode", async (req, res) => { const item = getItem(req, res); if (!item) return; if (!ffmpegAvailable) return res.status(503).json({ error: "FFmpeg unavailable" }); try { await waitMetadata(item); const index = Number(req.params.index); const file = selectedFile(item, index); if (!file) return res.status(404).json({ error: "Video file not found" }); await setCaching(item, true, index); await waitBytes(item, file, Math.min(file.length - 1, 4 * 1024 * 1024)); const source = await growingStream(item, file, 0, file.length - 1); const ffmpeg = spawn(process.env.FFMPEG_PATH || "ffmpeg", ["-hide_banner", "-loglevel", "error", "-i", "pipe:0", "-map", "0:v:0", "-map", "0:a?", "-c:v", "libx264", "-preset", "veryfast", "-c:a", "aac", "-movflags", "frag_keyframe+empty_moov+default_base_moof", "-f", "mp4", "pipe:1"]); res.setHeader("Content-Type", "video/mp4"); res.setHeader("Cache-Control", "no-store"); res.setHeader("Accept-Ranges", "none"); ffmpeg.once("error", (error) => res.destroy(error)); res.once("close", () => { source.destroy(); ffmpeg.kill("SIGKILL"); }); source.pipe(ffmpeg.stdin); ffmpeg.stdout.pipe(res); } catch (error) { if (!res.headersSent) res.status(500); res.end(error.message); } });
 
-app.post("/api/torrents/:id/retry", async (req, res) => { const item = getItem(req, res); if (!item) return; try { await rpc("aria2.forceRemove", [item.gid]); item.gid = await (item.sourceType === "magnet" ? rpc("aria2.addUri", [[item.sourceValue], addOptions(item.id)]) : rpc("aria2.addTorrent", [(await fsp.readFile(item.sourceValue)).toString("base64"), addOptions(item.id)])); item.status = "metadata"; item.error = null; item.files = []; item.selectionConfigured = false; await persistTasks(); res.json(publicTorrent(item)); } catch (error) { res.status(400).json({ error: error.message }); } });
+app.post("/api/torrents/:id/retry", async (req, res) => { const item = getItem(req, res); if (!item) return; try { await rpc("aria2.forceRemove", [item.gid]).catch(() => {}); item.gid = await (item.sourceType === "magnet" ? rpc("aria2.addUri", [[item.sourceValue], addOptions(item.id)]) : rpc("aria2.addTorrent", [(await fsp.readFile(item.sourceValue)).toString("base64"), addOptions(item.id)])); item.status = "metadata"; item.error = null; item.files = []; item.selectionConfigured = false; item.caching = true; await syncItem(item); await persistTasks(); res.json(publicTorrent(item)); } catch (error) { res.status(400).json({ error: error.message }); } });
 app.delete("/api/torrents/:id", async (req, res) => { const item = getItem(req, res); if (!item) return; await rpc("aria2.forceRemove", [item.gid]).catch(() => {}); torrents.delete(item.id); await persistTasks(); await fsp.rm(taskDir(item.id), { recursive: true, force: true }); res.status(204).end(); });
 
 async function directorySize(dir) { let total = 0; let entries; try { entries = await fsp.readdir(dir, { withFileTypes: true }); } catch { return 0; } for (const entry of entries) { const target = path.join(dir, entry.name); total += entry.isDirectory() ? await directorySize(target) : (await fsp.stat(target)).size; } return total; }
-async function restoreTasks() { let records; try { records = JSON.parse(await fsp.readFile(TASKS_FILE, "utf8")); } catch { return; } for (const record of records || []) { try { const source = record.sourceType === "file" ? await fsp.readFile(record.sourceValue) : record.sourceValue; const item = await addTask(source, record.sourceType, record); item.caching = false; } catch (error) { console.error("restore task failed:", error.message); } } await persistTasks(); }
+async function restoreTasks() { let records; try { records = JSON.parse(await fsp.readFile(TASKS_FILE, "utf8")); } catch { return; } const seen = new Set(); for (const record of records || []) { try { const source = record.sourceType === "file" ? await fsp.readFile(record.sourceValue) : record.sourceValue; const key = torrentKey(source, record.sourceType); if (seen.has(key)) continue; seen.add(key); await addTask(source, record.sourceType, record); } catch (error) { console.error("restore task failed:", error.message); } } await persistTasks(); }
 async function waitForAria2() { for (let attempt = 0; attempt < 60; attempt++) { try { await rpc("aria2.getVersion"); return; } catch { await new Promise((resolve) => setTimeout(resolve, 1000)); } } throw new Error("aria2 is unavailable"); }
 async function cleanup() { const now = Date.now(); for (const item of [...torrents.values()]) if (!item.activeStreams && now - item.lastAccessedAt > CACHE_TTL_MS) { await rpc("aria2.forceRemove", [item.gid]).catch(() => {}); torrents.delete(item.id); await fsp.rm(taskDir(item.id), { recursive: true, force: true }); } await persistTasks(); }
 function mimeFor(name) { return ({ ".mp4": "video/mp4", ".webm": "video/webm", ".m4v": "video/mp4", ".ogv": "video/ogg" })[path.extname(name).toLowerCase()] || "video/mp4"; }
