@@ -143,7 +143,6 @@ async function addTorrent(source, sourceType) {
     torrent.on("download", () => {
       if (item.status !== "ready") item.status = "downloading";
     });
-    await waitForReady(torrent);
     return publicTorrent(item);
   } catch (error) {
     item.status = "error";
