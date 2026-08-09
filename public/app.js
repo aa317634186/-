@@ -105,7 +105,7 @@ function renderQueue() {
     const cacheAction = item.status === "error"
       ? `<button class="cache-action" data-retry="${item.id}">重试</button>`
       : `<button class="cache-action" data-cache="${item.id}" data-enabled="${item.caching ? "false" : "true"}">${item.caching ? "暂停缓存" : "开始缓存"}</button>`;
-    const status = item.status === "ready" ? "已完成" : item.status === "error" ? "错误" : `${progress}% · ${formatSpeed(item.downloadSpeed)}`;
+    const status = item.status === "ready" ? "已完成" : item.status === "error" ? "错误" : item.status === "paused" ? "已暂停" : `${progress}% · ${formatSpeed(item.downloadSpeed)}`;
     return `<div class="queue-item ${item.id === state.selectedId ? "selected" : ""}" data-id="${item.id}">
       <div class="queue-item-head"><span class="queue-icon">▶</span><span class="queue-name" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</span><button class="queue-delete" data-delete="${item.id}" title="删除临时任务" aria-label="删除临时任务">×</button></div>
       <div class="queue-meta"><span>${status}</span><span>${item.peers} 个连接</span></div>
