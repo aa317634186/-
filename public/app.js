@@ -105,6 +105,7 @@ function renderQueue() {
     return `<div class="queue-item ${item.id === state.selectedId ? "selected" : ""}" data-id="${item.id}">
       <div class="queue-item-head"><span class="queue-icon">▶</span><span class="queue-name" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</span><button class="queue-delete" data-delete="${item.id}" title="删除临时任务" aria-label="删除临时任务">×</button></div>
       <div class="queue-meta"><span>${status}</span><span>${item.peers} 个连接</span></div>
+      <button class="cache-action" data-cache="${item.id}" data-enabled="${item.caching ? "false" : "true"}">${item.caching ? "暂停缓存" : "开始缓存"}</button>
       <div class="progress-track"><span style="width:${progress}%"></span></div>
     </div>`;
   }).join("");
@@ -113,6 +114,16 @@ function renderQueue() {
     event.stopPropagation();
     try { await api(`/api/torrents/${button.dataset.delete}`, { method: "DELETE" }); toast("临时任务已删除"); await refresh(); }
     catch (error) { toast(error.message, true); }
+  }));
+  list.querySelectorAll("[data-cache]").forEach((button) => button.addEventListener("click", async (event) => {
+    event.stopPropagation();
+    try {
+      await api(`/api/torrents/${button.dataset.cache}/cache`, {
+        method: "POST",
+        body: JSON.stringify({ enabled: button.dataset.enabled === "true" })
+      });
+      await refresh();
+    } catch (error) { toast(error.message, true); }
   }));
 }
 
@@ -221,6 +232,16 @@ function renderHistory() {
       <span class="history-meta"><span>${active ? `${progress}% · ${formatPosition(record.position)}` : "任务已清理"}</span><span>${formatDate(record.lastPlayedAt)}</span></span>
     </button>`;
   }).join("");
+  list.querySelectorAll("[data-history]").forEach((historyItem) => {
+    const deleteButton = document.createElement("span");
+    deleteButton.className = "history-delete";
+    deleteButton.dataset.historyDelete = historyItem.dataset.history;
+    deleteButton.title = "删除这条记录";
+    deleteButton.setAttribute("role", "button");
+    deleteButton.setAttribute("aria-label", "删除这条记录");
+    deleteButton.textContent = "×";
+    historyItem.append(deleteButton);
+  });
   list.querySelectorAll("[data-history]").forEach((button) => button.addEventListener("click", async () => {
     const record = historyRecord(button.dataset.history);
     const item = state.torrents.find((torrent) => torrent.id === record?.torrentId);
@@ -233,6 +254,12 @@ function renderHistory() {
       state.pendingHistoryKey = record.key;
       await refresh();
     } catch (error) { toast(error.message, true); }
+  }));
+  list.querySelectorAll("[data-history-delete]").forEach((button) => button.addEventListener("click", (event) => {
+    event.stopPropagation();
+    state.history = state.history.filter((record) => record.key !== button.dataset.historyDelete);
+    localStorage.setItem("cloud-player-history", JSON.stringify(state.history));
+    renderHistory();
   }));
 }
 
@@ -250,6 +277,22 @@ function toast(message, error = false) {
 }
 
 const player = $("#videoPlayer");
+async function setSelectedCaching(enabled) {
+  const item = state.torrents.find((torrent) => torrent.id === state.selectedId);
+  if (!item || !Number.isInteger(item.selectedFileIndex)) return;
+  try {
+    await api(`/api/torrents/${item.id}/cache`, {
+      method: "POST",
+      body: JSON.stringify({ enabled, fileIndex: item.selectedFileIndex })
+    });
+  } catch (error) {
+    toast(error.message, true);
+  }
+}
+
+player.addEventListener("play", () => setSelectedCaching(true));
+player.addEventListener("pause", () => setSelectedCaching(false));
+player.addEventListener("ended", () => setSelectedCaching(false));
 $("#playerEmpty").addEventListener("click", async () => {
   if (!player.src) return toast("视频文件还在解析中，请稍候", true);
   $("#playerEmpty").classList.add("hidden");

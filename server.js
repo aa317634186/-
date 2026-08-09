@@ -29,6 +29,7 @@ const torrents = new Map();
 
 const PORT = Number(process.env.PORT || 3000);
 const CACHE_DIR = path.resolve(process.env.CACHE_DIR || path.join(__dirname, "cache"));
+const TASKS_FILE = path.join(CACHE_DIR, "tasks.json");
 const MAX_CACHE_BYTES = Math.max(1, Number(process.env.MAX_CACHE_GB || 20)) * 1024 ** 3;
 const CACHE_TTL_MS = Math.max(5, Number(process.env.CACHE_TTL_MINUTES || 120)) * 60_000;
 const CLEANUP_INTERVAL_MS = Math.max(1, Number(process.env.CLEANUP_INTERVAL_MINUTES || 5)) * 60_000;
@@ -37,6 +38,7 @@ const VIDEO_EXTENSIONS = new Set([".mp4", ".mkv", ".webm", ".avi", ".mov", ".m4v
 const DIRECT_PLAY_EXTENSIONS = new Set([".mp4", ".webm", ".m4v", ".ogv"]);
 const FFMPEG_PATH = process.env.FFMPEG_PATH || "ffmpeg";
 let ffmpegAvailable = false;
+let saveTasksChain = Promise.resolve();
 
 await fsp.mkdir(CACHE_DIR, { recursive: true });
 
@@ -70,6 +72,7 @@ function publicTorrent(item) {
     lastAccessedAt: item.lastAccessedAt,
     createdAt: item.createdAt,
     activeStreams: item.activeStreams,
+    caching: Boolean(item.caching),
     files: files.map((file, index) => ({
       index,
       name: file.name,
@@ -117,6 +120,24 @@ function checkFfmpeg() {
   });
 }
 
+function persistTasks() {
+  const records = [...torrents.values()].map((item) => ({
+    id: item.id,
+    sourceType: item.sourceType,
+    sourceValue: item.sourceValue,
+    name: item.name,
+    createdAt: item.createdAt,
+    lastAccessedAt: item.lastAccessedAt,
+    selectedFileIndex: item.selectedFileIndex
+  }));
+  saveTasksChain = saveTasksChain.then(async () => {
+    const temporary = `${TASKS_FILE}.tmp`;
+    await fsp.writeFile(temporary, JSON.stringify(records, null, 2));
+    await fsp.rename(temporary, TASKS_FILE);
+  }).catch((error) => console.error("task persistence failed:", error));
+  return saveTasksChain;
+}
+
 function normalizeMagnet(value) {
   const input = value.trim();
   if (!/^magnet:\?/i.test(input)) throw new Error("Invalid magnet link");
@@ -134,34 +155,43 @@ function normalizeMagnet(value) {
   return `magnet:?${normalized.toString()}`;
 }
 
-async function addTorrent(source, sourceType) {
-  const id = crypto.randomUUID();
+async function addTorrent(source, sourceType, restored = null) {
+  const id = restored?.id || crypto.randomUUID();
+  const torrentPath = path.join(CACHE_DIR, id);
+  await fsp.mkdir(torrentPath, { recursive: true });
+  let torrentSource = source;
+  if (sourceType === "file" && Buffer.isBuffer(source)) {
+    torrentSource = path.join(torrentPath, "source.torrent");
+    await fsp.writeFile(torrentSource, source);
+  }
   const item = {
     id,
     source: sourceType === "magnet" ? "磁力链接" : "种子文件",
     name: "正在读取种子…",
     status: "metadata",
-    createdAt: new Date().toISOString(),
-    lastAccessedAt: Date.now(),
+    createdAt: restored?.createdAt || new Date().toISOString(),
+    lastAccessedAt: restored?.lastAccessedAt || Date.now(),
     activeStreams: 0,
-    selectedFileIndex: null,
+    selectedFileIndex: restored?.selectedFileIndex ?? null,
+    sourceType,
+    sourceValue: torrentSource,
+    caching: false,
     torrent: null
   };
   torrents.set(id, item);
 
-  const torrentPath = path.join(CACHE_DIR, id);
   try {
-    const torrent = client.add(source, { path: torrentPath });
+    const torrent = client.add(torrentSource, { path: torrentPath });
     item.torrent = torrent;
     torrent.on("ready", () => {
       item.name = torrent.name || "未命名种子";
-      item.status = "downloading";
+      item.status = "paused";
       const candidates = videoFiles(torrent);
       if (candidates.length) {
         torrent.files.forEach((file) => file.deselect());
-        item.selectedFileIndex = candidates[0].index;
-        candidates[0].file.select();
+        if (!Number.isInteger(item.selectedFileIndex) || !torrent.files[item.selectedFileIndex]) item.selectedFileIndex = candidates[0].index;
       }
+      persistTasks();
     });
     torrent.on("done", () => {
       item.status = "ready";
@@ -171,13 +201,51 @@ async function addTorrent(source, sourceType) {
       item.error = error.message;
     });
     torrent.on("download", () => {
-      if (item.status !== "ready") item.status = "downloading";
+      if (item.caching && item.status !== "ready") item.status = "downloading";
     });
+    await persistTasks();
     return publicTorrent(item);
   } catch (error) {
     item.status = "error";
     item.error = error.message;
     throw Object.assign(new Error(error.message), { item });
+  }
+}
+
+function setCaching(item, enabled, fileIndex = item.selectedFileIndex) {
+  if (!item.torrent?.ready) return false;
+  const file = item.torrent.files[fileIndex];
+  if (enabled && (!file || !VIDEO_EXTENSIONS.has(path.extname(file.name).toLowerCase()))) return false;
+  item.torrent.files.forEach((candidate) => candidate.deselect());
+  if (enabled) {
+    file.select();
+    item.selectedFileIndex = fileIndex;
+    item.caching = true;
+    item.status = item.torrent.done ? "ready" : "downloading";
+  } else {
+    item.caching = false;
+    item.status = item.torrent.done ? "ready" : "paused";
+  }
+  persistTasks();
+  return true;
+}
+
+async function restoreTasks() {
+  let records;
+  try {
+    records = JSON.parse(await fsp.readFile(TASKS_FILE, "utf8"));
+  } catch {
+    return;
+  }
+  if (!Array.isArray(records)) return;
+  for (const record of records) {
+    if (!record?.id || !record.sourceValue) continue;
+    if (record.sourceType === "file" && !fs.existsSync(record.sourceValue)) continue;
+    try {
+      await addTorrent(record.sourceValue, record.sourceType, record);
+    } catch (error) {
+      console.error(`failed to restore torrent ${record.id}:`, error.message);
+    }
   }
 }
 
@@ -243,10 +311,20 @@ app.post("/api/torrents/:id/select", async (req, res) => {
   if (!file || !VIDEO_EXTENSIONS.has(path.extname(file.name).toLowerCase())) {
     return res.status(400).json({ error: "只能选择视频文件" });
   }
-  item.torrent.files.forEach((candidate) => candidate.deselect());
-  file.select();
   item.selectedFileIndex = fileIndex;
-  item.status = item.torrent.done ? "ready" : "downloading";
+  setCaching(item, false, fileIndex);
+  await persistTasks();
+  res.json(publicTorrent(item));
+});
+
+app.post("/api/torrents/:id/cache", async (req, res) => {
+  const item = getItem(req, res);
+  if (!item) return;
+  await waitForReady(item.torrent);
+  const enabled = req.body?.enabled !== false;
+  if (!setCaching(item, enabled, Number(req.body?.fileIndex ?? item.selectedFileIndex))) {
+    return res.status(400).json({ error: "暂无可缓存的视频文件" });
+  }
   res.json(publicTorrent(item));
 });
 
@@ -261,6 +339,7 @@ app.get("/api/torrents/:id/files/:index/stream", async (req, res) => {
       return res.status(404).json({ error: "找不到视频文件" });
     }
 
+    setCaching(item, true, index);
     const total = Number(file.length);
     const range = req.headers.range;
     let start = 0;
@@ -403,6 +482,7 @@ async function removeOrphanedCache() {
 
 async function destroyTorrent(item) {
   torrents.delete(item.id);
+  await persistTasks();
   await new Promise((resolve) => {
     if (!item.torrent) return resolve();
     item.torrent.destroy({ destroyStore: true }, () => resolve());
@@ -430,6 +510,7 @@ async function cleanupCache() {
 
 setInterval(() => cleanupCache().catch((error) => console.error("cache cleanup failed", error)), CLEANUP_INTERVAL_MS).unref();
 
+await restoreTasks();
 await removeOrphanedCache();
 
 ffmpegAvailable = await checkFfmpeg();
