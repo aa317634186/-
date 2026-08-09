@@ -98,7 +98,7 @@ async function syncItem(item) {
 
 async function syncAll() { await Promise.all([...torrents.values()].map(syncItem)); }
 function getItem(req, res) { const item = torrents.get(req.params.id); if (!item) { res.status(404).json({ error: "Task not found" }); return null; } item.lastAccessedAt = Date.now(); return item; }
-function addOptions(id) { return { dir: taskDir(id), "bt-sequential-download": "true", "bt-prioritize-piece": "head", "bt-max-peers": String(process.env.MAX_PEERS || 200), "max-upload-limit": `${process.env.UPLOAD_LIMIT_KBPS || 32}K`, "seed-time": "0", "enable-dht": "true", "bt-enable-lpd": "true", "bt-tracker-connect": "true" }; }
+function addOptions(id) { return { dir: taskDir(id), "bt-sequential-download": "true", "bt-prioritize-piece": "head", "bt-max-peers": String(process.env.MAX_PEERS || 200), "max-upload-limit": `${process.env.UPLOAD_LIMIT_KBPS || 32}K`, "seed-time": "0", "enable-dht": "true", "bt-enable-lpd": "true", "bt-tracker-connect": "true", "bt-tracker": ["udp://tracker.opentrackr.org:1337/announce", "udp://open.stealth.si:80/announce", "udp://tracker.torrent.eu.org:451/announce", "udp://exodus.desync.com:6969/announce"].join(",") }; }
 
 async function addTask(source, sourceType, restored = null) {
   const id = restored?.id || crypto.randomUUID();
