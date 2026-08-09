@@ -23,9 +23,9 @@ require_root() {
 
 compose() {
   if docker compose version >/dev/null 2>&1; then
-    docker compose "$@"
+    (cd "$APP_DIR" && docker compose --env-file "$ENV_FILE" "$@")
   elif command -v docker-compose >/dev/null 2>&1; then
-    docker-compose "$@"
+    (cd "$APP_DIR" && docker-compose --env-file "$ENV_FILE" "$@")
   else
     die "未找到 Docker Compose，请先安装 Docker。"
   fi
