@@ -76,6 +76,9 @@ CACHE_TTL_MINUTES=120
 CLEANUP_INTERVAL_MINUTES=5
 MAX_TORRENT_FILE_MB=20
 FFMPEG_PATH=ffmpeg
+PEER_PORT=6881
+DHT_PORT=6881
+MAX_PEERS=80
 AUTH_TOKEN=${token}
 EOF
     chmod 600 "$ENV_FILE"
@@ -142,17 +145,34 @@ firewall_port() {
   local action="$1"
   require_root
   [[ -f "$ENV_FILE" ]] || { warn "请先安装云播放器。"; return; }
-  local port
+  local port peer_port
   port="$(grep -E '^PORT=' "$ENV_FILE" 2>/dev/null | cut -d= -f2 || echo 3000)"
+  peer_port="$(grep -E '^PEER_PORT=' "$ENV_FILE" 2>/dev/null | cut -d= -f2 || echo 6881)"
   if grep -q '^BIND_IP=' "$ENV_FILE"; then
     sed -i "s/^BIND_IP=.*/BIND_IP=$([[ "$action" == "allow" ]] && echo 0.0.0.0 || echo 127.0.0.1)/" "$ENV_FILE"
   else
     echo "BIND_IP=$([[ "$action" == "allow" ]] && echo 0.0.0.0 || echo 127.0.0.1)" >> "$ENV_FILE"
   fi
   if command -v ufw >/dev/null 2>&1; then
-    [[ "$action" == "allow" ]] && ufw allow "${port}/tcp" || ufw delete allow "${port}/tcp" || true
+    if [[ "$action" == "allow" ]]; then
+      ufw allow "${port}/tcp"
+      ufw allow "${peer_port}/tcp"
+      ufw allow "${peer_port}/udp"
+    else
+      ufw delete allow "${port}/tcp" || true
+      ufw delete allow "${peer_port}/tcp" || true
+      ufw delete allow "${peer_port}/udp" || true
+    fi
   elif command -v firewall-cmd >/dev/null 2>&1; then
-    [[ "$action" == "allow" ]] && firewall-cmd --permanent --add-port="${port}/tcp" || firewall-cmd --permanent --remove-port="${port}/tcp" || true
+    if [[ "$action" == "allow" ]]; then
+      firewall-cmd --permanent --add-port="${port}/tcp"
+      firewall-cmd --permanent --add-port="${peer_port}/tcp"
+      firewall-cmd --permanent --add-port="${peer_port}/udp"
+    else
+      firewall-cmd --permanent --remove-port="${port}/tcp" || true
+      firewall-cmd --permanent --remove-port="${peer_port}/tcp" || true
+      firewall-cmd --permanent --remove-port="${peer_port}/udp" || true
+    fi
     firewall-cmd --reload >/dev/null 2>&1 || true
   else
     warn "未检测到 ufw/firewalld，未修改系统防火墙。"

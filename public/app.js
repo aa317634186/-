@@ -250,6 +250,18 @@ function toast(message, error = false) {
 }
 
 const player = $("#videoPlayer");
+$("#playerEmpty").addEventListener("click", async () => {
+  if (!player.src) return toast("视频文件还在解析中，请稍候", true);
+  $("#playerEmpty").classList.add("hidden");
+  try {
+    await player.play();
+  } catch {
+    toast("浏览器阻止了自动播放，请再次点击播放器", true);
+  }
+});
+player.addEventListener("canplay", () => {
+  if (player.src) $("#playerEmpty").classList.add("hidden");
+});
 player.addEventListener("loadedmetadata", () => {
   const record = historyRecord(player.dataset.historyKey);
   if (player.dataset.restoreHistory === "1" && record && !player.dataset.restored) {

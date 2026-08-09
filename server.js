@@ -11,7 +11,16 @@ import WebTorrent from "webtorrent";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
-const client = new WebTorrent();
+const client = new WebTorrent({
+  torrentPort: Math.max(1, Number(process.env.PEER_PORT || 6881)),
+  dhtPort: Math.max(1, Number(process.env.DHT_PORT || 6881)),
+  dht: true,
+  tracker: true,
+  lsd: true,
+  natUpnp: true,
+  natPmp: true,
+  maxConns: Math.max(8, Number(process.env.MAX_PEERS || 80))
+});
 const torrents = new Map();
 
 const PORT = Number(process.env.PORT || 3000);

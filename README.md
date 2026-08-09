@@ -11,6 +11,7 @@
 - 支持浏览器拖动进度条所需的 HTTP Range 请求
 - MP4、WebM 等格式直接播放；MKV、AVI、MOV、FLV、TS、M2TS 等格式由 FFmpeg 转码为浏览器可播放流
 - 浏览器端保存播放历史和播放进度；临时任务清理后历史会标记为不可用
+- WebTorrent 同时使用 Tracker、DHT 和局域网发现，并支持多 Peer 并发下载
 - 独立临时缓存目录，默认 20 GB 上限
 - 任务空闲 120 分钟后自动清理，超出容量时按最久未访问顺序清理
 - 服务启动或定时检查时会移除没有对应活动任务的残留缓存目录
@@ -67,9 +68,14 @@ npm start
 | `CLEANUP_INTERVAL_MINUTES` | `5` | 清理任务运行间隔 |
 | `MAX_TORRENT_FILE_MB` | `20` | 上传的 `.torrent` 文件大小上限 |
 | `FFMPEG_PATH` | `ffmpeg` | FFmpeg 可执行文件路径 |
+| `PEER_PORT` | `6881` | Torrent TCP/UDP Peer 端口 |
+| `DHT_PORT` | `6881` | DHT UDP 端口 |
+| `MAX_PEERS` | `80` | 单个客户端最大 Peer 连接数 |
 | `AUTH_TOKEN` | 空 | 非空时 API 需要 Bearer 令牌 |
 
 兼容格式需要服务器安装 FFmpeg。Docker 镜像会自动安装；直接运行时可执行 `sudo apt-get update && sudo apt-get install -y ffmpeg`。
+
+多 Peer 下载还需要在云服务器安全组和系统防火墙开放 `6881/TCP`、`6881/UDP`。如果任务显示 `0 个连接`，也可能是磁力链接没有活跃做种、Tracker/DHT 不可达，或者服务器网络限制了 BitTorrent 流量；这不是缓存容量限制。
 
 ## 运行边界
 
