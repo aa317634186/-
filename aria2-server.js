@@ -128,7 +128,13 @@ function selectedFile(item, index = item.selectedFileIndex) { const file = item.
 async function setCaching(item, enabled, index = item.selectedFileIndex) {
   await syncItem(item);
   const file = selectedFile(item, index);
-  if (!file) return false;
+  if (!file) {
+    await rpc(enabled ? "aria2.unpause" : "aria2.pause", [item.gid]);
+    item.caching = enabled;
+    item.status = enabled ? "downloading" : "paused";
+    await persistTasks();
+    return enabled;
+  }
   item.selectedFileIndex = index;
   if (!item.selectionConfigured) { await rpc("aria2.changeOption", [item.gid, { "select-file": String(index + 1), "bt-sequential-download": "true", "bt-prioritize-piece": "head" }]); item.selectionConfigured = true; }
   await rpc(enabled ? "aria2.unpause" : "aria2.pause", [item.gid]);
