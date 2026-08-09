@@ -7,6 +7,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import express from "express";
 import multer from "multer";
+import parseTorrent from "parse-torrent";
 import WebTorrent from "webtorrent";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -162,6 +163,7 @@ async function addTorrent(source, sourceType, restored = null) {
   let torrentSource = source;
   if (sourceType === "magnet") {
     torrentSource = normalizeMagnet(source);
+    await parseTorrent(torrentSource);
   } else if (sourceType === "file" && Buffer.isBuffer(source)) {
     torrentSource = path.join(torrentPath, "source.torrent");
     await fsp.writeFile(torrentSource, source);
@@ -249,6 +251,7 @@ async function restoreTasks() {
       console.error(`failed to restore torrent ${record.id}:`, error.message);
     }
   }
+  await persistTasks();
 }
 
 function getItem(req, res) {
