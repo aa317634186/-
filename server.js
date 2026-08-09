@@ -17,11 +17,20 @@ const client = new WebTorrent({
   dhtPort: Math.max(1, Number(process.env.DHT_PORT || 6881)),
   utp: false,
   dht: true,
-  tracker: true,
+  tracker: {
+    announce: [
+      "udp://tracker.opentrackr.org:1337/announce",
+      "udp://open.stealth.si:80/announce",
+      "udp://tracker.torrent.eu.org:451/announce",
+      "udp://exodus.desync.com:6969/announce",
+      "wss://tracker.openwebtorrent.com"
+    ]
+  },
   lsd: true,
   natUpnp: true,
   natPmp: true,
-  maxConns: Math.max(8, Number(process.env.MAX_PEERS || 200))
+  maxConns: Math.max(8, Number(process.env.MAX_PEERS || 200)),
+  uploadLimit: Math.max(0, Number(process.env.UPLOAD_LIMIT_KBPS || 32)) * 1024
 });
 client.on("error", (error) => {
   console.error("WebTorrent client error:", error);

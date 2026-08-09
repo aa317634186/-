@@ -66,6 +66,8 @@ npm start
 | `MAX_CACHE_GB` | `20` | 缓存容量上限 |
 | `CACHE_TTL_MINUTES` | `180` | 固定 3 小时后清理无活动缓存 |
 | `CLEANUP_INTERVAL_MINUTES` | `180` | 固定每 3 小时运行清理 |
+| `MAX_PEERS` | `200` | 每个任务最大连接数 |
+| `UPLOAD_LIMIT_KBPS` | `32` | 上传限速，单位 KB/s |
 | `MAX_TORRENT_FILE_MB` | `20` | 上传的 `.torrent` 文件大小上限 |
 | `FFMPEG_PATH` | `ffmpeg` | FFmpeg 可执行文件路径 |
 | `PEER_PORT` | `6881` | Torrent TCP/UDP Peer 端口 |
