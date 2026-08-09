@@ -31,8 +31,9 @@ const PORT = Number(process.env.PORT || 3000);
 const CACHE_DIR = path.resolve(process.env.CACHE_DIR || path.join(__dirname, "cache"));
 const TASKS_FILE = path.join(CACHE_DIR, "tasks.json");
 const MAX_CACHE_BYTES = Math.max(1, Number(process.env.MAX_CACHE_GB || 20)) * 1024 ** 3;
-const CACHE_TTL_MS = Math.max(5, Number(process.env.CACHE_TTL_MINUTES || 120)) * 60_000;
-const CLEANUP_INTERVAL_MS = Math.max(1, Number(process.env.CLEANUP_INTERVAL_MINUTES || 5)) * 60_000;
+const CACHE_TTL_MINUTES = 10 * 60;
+const CACHE_TTL_MS = CACHE_TTL_MINUTES * 60_000;
+const CLEANUP_INTERVAL_MS = CACHE_TTL_MS;
 const MAX_TORRENT_FILE_BYTES = Math.max(1, Number(process.env.MAX_TORRENT_FILE_MB || 20)) * 1024 ** 2;
 const VIDEO_EXTENSIONS = new Set([".mp4", ".mkv", ".webm", ".avi", ".mov", ".m4v", ".ts", ".m2ts", ".flv", ".ogv"]);
 const DIRECT_PLAY_EXTENSIONS = new Set([".mp4", ".webm", ".m4v", ".ogv"]);
@@ -262,7 +263,7 @@ function getItem(req, res) {
 app.get("/api/config", (_req, res) => {
   res.json({
     maxCacheGb: Number(process.env.MAX_CACHE_GB || 20),
-    cacheTtlMinutes: Number(process.env.CACHE_TTL_MINUTES || 120),
+    cacheTtlMinutes: CACHE_TTL_MINUTES,
     ffmpegAvailable,
     authEnabled: Boolean(process.env.AUTH_TOKEN?.trim())
   });
@@ -398,6 +399,7 @@ app.get("/api/torrents/:id/files/:index/transcode", async (req, res) => {
       return res.status(400).json({ error: "该视频格式无需转换" });
     }
 
+    setCaching(item, true, index);
     item.lastAccessedAt = Date.now();
     item.activeStreams += 1;
     res.setHeader("Content-Type", "video/mp4");

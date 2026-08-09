@@ -64,8 +64,8 @@ npm start
 | `PORT` | `3000` | HTTP 端口 |
 | `CACHE_DIR` | `./cache` | 临时缓存位置 |
 | `MAX_CACHE_GB` | `20` | 缓存容量上限 |
-| `CACHE_TTL_MINUTES` | `120` | 无访问任务的清理时间 |
-| `CLEANUP_INTERVAL_MINUTES` | `5` | 清理任务运行间隔 |
+| `CACHE_TTL_MINUTES` | `600` | 固定 10 小时后清理无活动缓存 |
+| `CLEANUP_INTERVAL_MINUTES` | `600` | 固定每 10 小时运行清理 |
 | `MAX_TORRENT_FILE_MB` | `20` | 上传的 `.torrent` 文件大小上限 |
 | `FFMPEG_PATH` | `ffmpeg` | FFmpeg 可执行文件路径 |
 | `PEER_PORT` | `6881` | Torrent TCP/UDP Peer 端口 |
