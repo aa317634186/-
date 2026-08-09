@@ -440,6 +440,25 @@ app.get("/api/torrents/:id/files/:index/transcode", async (req, res) => {
   }
 });
 
+app.post("/api/torrents/:id/retry", async (req, res) => {
+  const item = getItem(req, res);
+  if (!item) return;
+  const source = item.sourceType === "file" ? await fsp.readFile(item.sourceValue) : item.sourceValue;
+  const restored = {
+    id: item.id,
+    name: item.name,
+    createdAt: item.createdAt,
+    lastAccessedAt: Date.now(),
+    selectedFileIndex: item.selectedFileIndex
+  };
+  await destroyTorrent(item);
+  try {
+    res.json(await addTorrent(source, item.sourceType, restored));
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
 app.delete("/api/torrents/:id", async (req, res) => {
   const item = getItem(req, res);
   if (!item) return;

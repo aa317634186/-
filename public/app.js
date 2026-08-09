@@ -101,11 +101,16 @@ function renderQueue() {
   list.className = "queue-list";
   list.innerHTML = state.torrents.map((item) => {
     const progress = Math.round(item.progress * 100);
+    const errorDetails = item.error ? `<div class="queue-error">${escapeHtml(item.error)}</div>` : "";
+    const cacheAction = item.status === "error"
+      ? `<button class="cache-action" data-retry="${item.id}">重试</button>`
+      : `<button class="cache-action" data-cache="${item.id}" data-enabled="${item.caching ? "false" : "true"}">${item.caching ? "暂停缓存" : "开始缓存"}</button>`;
     const status = item.status === "ready" ? "已完成" : item.status === "error" ? "错误" : `${progress}% · ${formatSpeed(item.downloadSpeed)}`;
     return `<div class="queue-item ${item.id === state.selectedId ? "selected" : ""}" data-id="${item.id}">
       <div class="queue-item-head"><span class="queue-icon">▶</span><span class="queue-name" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</span><button class="queue-delete" data-delete="${item.id}" title="删除临时任务" aria-label="删除临时任务">×</button></div>
       <div class="queue-meta"><span>${status}</span><span>${item.peers} 个连接</span></div>
-      <button class="cache-action" data-cache="${item.id}" data-enabled="${item.caching ? "false" : "true"}">${item.caching ? "暂停缓存" : "开始缓存"}</button>
+      ${errorDetails}
+      ${cacheAction}
       <div class="progress-track"><span style="width:${progress}%"></span></div>
     </div>`;
   }).join("");
@@ -122,6 +127,13 @@ function renderQueue() {
         method: "POST",
         body: JSON.stringify({ enabled: button.dataset.enabled === "true" })
       });
+      await refresh();
+    } catch (error) { toast(error.message, true); }
+  }));
+  list.querySelectorAll("[data-retry]").forEach((button) => button.addEventListener("click", async (event) => {
+    event.stopPropagation();
+    try {
+      await api(`/api/torrents/${button.dataset.retry}/retry`, { method: "POST" });
       await refresh();
     } catch (error) { toast(error.message, true); }
   }));
@@ -293,6 +305,10 @@ async function setSelectedCaching(enabled) {
 player.addEventListener("play", () => setSelectedCaching(true));
 player.addEventListener("pause", () => setSelectedCaching(false));
 player.addEventListener("ended", () => setSelectedCaching(false));
+player.addEventListener("error", () => {
+  const item = state.torrents.find((torrent) => torrent.id === state.selectedId);
+  toast(item?.error || "视频流读取失败，请查看任务错误信息", true);
+});
 $("#playerEmpty").addEventListener("click", async () => {
   if (!player.src) return toast("视频文件还在解析中，请稍候", true);
   $("#playerEmpty").classList.add("hidden");
