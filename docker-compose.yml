@@ -5,8 +5,6 @@ services:
     restart: unless-stopped
     ports:
       - "3000:3000"
-      - "${PEER_PORT:-6881}:6881/tcp"
-      - "${PEER_PORT:-6881}:6881/udp"
     environment:
       PORT: ${PORT:-3000}
       CACHE_DIR: ${CACHE_DIR:-/data/cache}
@@ -19,8 +17,33 @@ services:
       DHT_PORT: ${DHT_PORT:-6881}
       MAX_PEERS: ${MAX_PEERS:-200}
       UPLOAD_LIMIT_KBPS: ${UPLOAD_LIMIT_KBPS:-32}
+      ARIA2_RPC_URL: http://aria2:6800/jsonrpc
+      ARIA2_SECRET: ${ARIA2_SECRET:-cloud-player-secret}
       # Set a long random token before exposing the service to the Internet.
       AUTH_TOKEN: ${AUTH_TOKEN:-}
+    volumes:
+      - ./data:/data
+    depends_on:
+      - aria2
+
+  aria2:
+    image: p3terx/aria2-pro:latest
+    container_name: cloud-player-aria2
+    restart: unless-stopped
+    environment:
+      RPC_SECRET: ${ARIA2_SECRET:-cloud-player-secret}
+      RPC_PORT: 6800
+      LISTEN_PORT: 6881
+      DISK_CACHE: 64M
+      BT_MAX_PEERS: 200
+      ENABLE_DHT: "true"
+      ENABLE_TRACKER: "true"
+      ENABLE_LPD: "true"
+      RPC_LISTEN_ALL: "true"
+      SEEDING_INTERVAL: 0
+    ports:
+      - "6881:6881/tcp"
+      - "6881:6881/udp"
     volumes:
       - ./data:/data
 

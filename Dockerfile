@@ -5,10 +5,9 @@ COPY package*.json ./
 RUN apt-get update \
   && apt-get install -y --no-install-recommends ffmpeg \
   && rm -rf /var/lib/apt/lists/* \
-  && npm install --omit=dev \
-  && sed -i 's/arr2hex(parsedTorrent.infoHash)/arr2hex(parsedTorrent.infoHashBuffer)/g' node_modules/webtorrent/lib/torrent.js
+  && npm install --omit=dev
 
-COPY server.js ./
+COPY aria2-server.js ./server.js
 COPY public ./public
 
 ENV NODE_ENV=production
