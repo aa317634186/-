@@ -42,9 +42,11 @@ app.use("/api", authGuard);
 
 async function qbtRequest(endpoint, options = {}, retry = true) {
   const headers = { ...(options.headers || {}) };
+  if (!qbtCookie && QBT_USERNAME && QBT_PASSWORD) await qbtLogin();
   if (qbtCookie) headers.cookie = qbtCookie;
   const response = await fetch(`${QBT_URL}${endpoint}`, { ...options, headers });
   if (response.status === 403 && retry && QBT_USERNAME && QBT_PASSWORD) {
+    qbtCookie = "";
     await qbtLogin();
     return qbtRequest(endpoint, options, false);
   }
