@@ -17,7 +17,7 @@ services:
       DHT_PORT: ${DHT_PORT:-6881}
       MAX_PEERS: ${MAX_PEERS:-200}
       UPLOAD_LIMIT_KBPS: ${UPLOAD_LIMIT_KBPS:-32}
-      QBT_URL: http://qbittorrent:8080
+      QBT_URL: http://qbittorrent:18080
       QBT_USERNAME: ${QBT_USERNAME:-}
       QBT_PASSWORD: ${QBT_PASSWORD:-}
       # Set a long random token before exposing the service to the Internet.
@@ -35,7 +35,7 @@ services:
       PUID: ${PUID:-0}
       PGID: ${PGID:-0}
       TZ: ${TZ:-Asia/Singapore}
-      WEBUI_PORT: 8080
+      WEBUI_PORT: 18080
       TORRENTING_PORT: 6881
     ports:
       - "6881:6881/tcp"
