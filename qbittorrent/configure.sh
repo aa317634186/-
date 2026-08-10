@@ -15,8 +15,8 @@ set_setting() {
   fi
 }
 
-set_setting 'WebUI\\AuthenticationEnabled' 'false'
-set_setting 'WebUI\\CSRFProtection' 'false'
-set_setting 'WebUI\\HostHeaderValidation' 'false'
-set_setting 'WebUI\\OriginHeaderValidation' 'false'
-set_setting 'WebUI\\AuthenticationSubnetWhitelistEnabled' 'false'
+set_setting 'WebUI\AuthenticationEnabled' 'false'
+set_setting 'WebUI\CSRFProtection' 'false'
+set_setting 'WebUI\HostHeaderValidation' 'false'
+set_setting 'WebUI\OriginHeaderValidation' 'false'
+set_setting 'WebUI\AuthenticationSubnetWhitelistEnabled' 'false'
