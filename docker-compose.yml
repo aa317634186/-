@@ -17,34 +17,31 @@ services:
       DHT_PORT: ${DHT_PORT:-6881}
       MAX_PEERS: ${MAX_PEERS:-200}
       UPLOAD_LIMIT_KBPS: ${UPLOAD_LIMIT_KBPS:-32}
-      ARIA2_RPC_URL: http://aria2:6800/jsonrpc
-      ARIA2_SECRET: ${ARIA2_SECRET:-cloud-player-secret}
+      QBT_URL: http://qbittorrent:8080
+      QBT_USERNAME: ${QBT_USERNAME:-}
+      QBT_PASSWORD: ${QBT_PASSWORD:-}
       # Set a long random token before exposing the service to the Internet.
       AUTH_TOKEN: ${AUTH_TOKEN:-}
     volumes:
       - ./data:/data
     depends_on:
-      - aria2
+      - qbittorrent
 
-  aria2:
-    image: p3terx/aria2-pro:latest
-    container_name: cloud-player-aria2
+  qbittorrent:
+    build: ./qbittorrent
+    container_name: cloud-player-qbittorrent
     restart: unless-stopped
     environment:
-      RPC_SECRET: ${ARIA2_SECRET:-cloud-player-secret}
-      RPC_PORT: 6800
-      LISTEN_PORT: 6881
-      DISK_CACHE: 64M
-      BT_MAX_PEERS: 200
-      ENABLE_DHT: "true"
-      ENABLE_TRACKER: "true"
-      ENABLE_LPD: "true"
-      RPC_LISTEN_ALL: "true"
-      SEEDING_INTERVAL: 0
+      PUID: ${PUID:-0}
+      PGID: ${PGID:-0}
+      TZ: ${TZ:-Asia/Singapore}
+      WEBUI_PORT: 8080
+      TORRENTING_PORT: 6881
     ports:
       - "6881:6881/tcp"
       - "6881:6881/udp"
     volumes:
+      - ./data/qbittorrent:/config
       - ./data:/data
 
   caddy:

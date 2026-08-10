@@ -7,7 +7,7 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/* \
   && npm install --omit=dev
 
-COPY aria2-server.js ./server.js
+COPY qbittorrent-server.js ./server.js
 COPY public ./public
 
 ENV NODE_ENV=production
